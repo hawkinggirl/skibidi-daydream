@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Trolley Game</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: sans-serif;
+      background: black;
+      color: white;
+    }
+
+    #intro { text-align:center; margin-bottom:20px; }
+
+    #game {
+      position: relative;
+      width: 600px;
+      height: 300px;
+      margin: auto;
+      border: 2px solid #000;
+      background: #222;
+      overflow: hidden;
+      display: none;
+    }
+
+    .track {
+      position: absolute;
+      width: 100%;
+      height: 80px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      background-image: url('track.png');
+      background-repeat: repeat-x;
+      background-position: bottom;
+      background-size: auto 20px;
+    }
+    .track.left { top: 50px; }
+    .track.right { bottom: 50px; }
+
+.person {
+  width: 100px; 
+  height: 100px;
+  margin: 5px;
+  position: relative;
+  z-index: 1;
+}
+.person img {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  top: -15px; 
+}
+
+
+.blood {
+  width: 100px;
+  height: 100px;
+  background-image: url('blood.png'); 
+  background-size: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  opacity: 0.9;
+  pointer-events: none;
+  transform: scale(0);
+  transition: transform 0.3s ease, opacity 0.5s ease;
+  z-index: 2;
+}
+
+
+    #train {
+      width: 150px;
+      height: 75px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transition: left 1.5s ease-in-out, top 1.5s ease-in-out;
+      z-index: 3;
+    }
+
+    button {
+      font-size: 18px;
+      margin: 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    #restartBtn { display: none; background: #f25f5c; color: white; }
+    #leftBtn, #rightBtn { display: none; }
+
+    #killCount, #scoreCount {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 18px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 5px 10px;
+      border-radius: 5px;
+      z-index: 10;
+      text-align: left;
+    }
+    #scoreCount { top: 40px; }
+  </style>
+</head>
+<body>
+
+<div id="intro">
+  <img src="spooky.png" alt="Logo" style="width:300px; display:block; margin:auto; margin-bottom:20px;">
+  <h2>Welcome to the Trolley Game!</h2>
+  <p>Choose wisely: click the button corresponding to the people you want to save.<br>
+  Get more than 300 points to win and receive a title!</p>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<!-- Counters -->
+<div id="killCount">Kills: 0</div>
+<div id="scoreCount">Score: 0</div>
+
+<h1 id="question"></h1>
+<button id="leftBtn">Left</button>
+<button id="rightBtn">Right</button>
+<button id="restartBtn">Restart</button>
+<p id="feedback"></p>
+
+<div id="game">
+  <div class="track left" id="leftTrack"></div>
+  <div class="track right" id="rightTrack"></div>
+  <img src="train.png" id="train">
+</div>
+
+<audio id="hitSound" src="hit.mp3"></audio>
+<audio id="questionSound" src="question.mp3"></audio>
+<audio id="endSound" src="end.mp3"></audio>
+
+<script>
+/* 30 questions now */
+const allQuestions = [
+  { text: "Pull the lever to save 3 friends but sacrifice your dad?", left:1, right:3, leftLabel:"Save friends", rightLabel:"Protect dad", leftImg:"person.png", rightImg:"person.png" },
+  { text: "Kill your best friend or random strangers?", left:1, right:3, leftLabel:"Best friend", rightLabel:"Strangers", leftImg:"person.png", rightImg:"person.png" },
+  { text: "Sacrifice yourself or let the trolley keep going?", left:1, right:3, leftLabel:"Myself", rightLabel:"Others", leftImg:"person.png", rightImg:"person.png" },
+  { text: "Kill 1 grandma or 3 toddlers?", left:1, right:3, leftLabel:"Grandma", rightLabel:"Toddlers", leftImg:"grandma.png", rightImg:"baby.png" },
+  { text: "Sacrifice 3 clowns or 1 circus elephant?", left:3, right:1, leftLabel:"Clowns", rightLabel:"Elephant", leftImg:"clown.png", rightImg:"elephant.png" },
+  { text: "elimate the pizza guy or your order of pizzas?", left:1, right:5, leftLabel:"Delivery guy", rightLabel:"Pizzas", leftImg:"pizzaman.png", rightImg:"pizza.png" },
+  { text: "Run over your annoying neighbor or a random stranger?", left:1, right:1, leftLabel:"Neighbor", rightLabel:"Stranger", leftImg:"person.png", rightImg:"person.png" },
+  { text: "Sacrifice 2 ducks or 1 goose (angry)?", left:2, right:1, leftLabel:"Ducks", rightLabel:"Goose", leftImg:"duck.png", rightImg:"goose.png" },
+  { text: "Run over 1 celebrity or unemployed people?", left:1, right:5, leftLabel:"Celebrity", rightLabel:"Unemployed", leftImg:"justinman.png", rightImg:"unemployed.png" },
+  { text: "Sacrifice 1 Roblox player or 5 babies?", left:1, right:5, leftLabel:"Roblox player", rightLabel:"Babies", leftImg:"roblox.png", rightImg:"baby.png" },
+  // 20 more new ones:
+  { text: "Run over 2 teachers or 1 principal?", left:2, right:1, leftLabel:"Teachers", rightLabel:"Principal", leftImg:"person.png", rightImg:"person.png" },
+  { text: "Flatten 2 influencers or 1 grandma baking cookies?", left:2, right:1, leftLabel:"Influencers", rightLabel:"Grandma", leftImg:"charlie.png", rightImg:"grandma.png" },
+  { text: "Kill 1 dog or 5 cats?", left:1, right:5, leftLabel:"Dog", rightLabel:"Cats", leftImg:"puppie.png", rightImg:"cat.png" },
+  { text: "Run over 5 mosquitoes or 1 bee?", left:5, right:1, leftLabel:"Mosquitoes", rightLabel:"Bee", leftImg:"mosquito.png", rightImg:"bee.png" },
+  { text: "Sacrifice 1 politician or 4 toddlers?", left:1, right:4, leftLabel:"Politician", rightLabel:"Toddlers", leftImg:"trump.png", rightImg:"baby.png" },
+  { text: "Run over Santa Claus or 5 presents?", left:1, right:5, leftLabel:"Santa", rightLabel:"Presents", leftImg:"santa.png", rightImg:"gift.png" },
+  { text: "Kill 3 zombies or 1 survivor?", left:3, right:1, leftLabel:"Zombies", rightLabel:"Survivor", leftImg:"zombie.png", rightImg:"person.png" },
+  { text: "sacrifice a goldfish or 2 hamsters?", left:1, right:2, leftLabel:"Goldfish", rightLabel:"Hamsters", leftImg:"fish.png", rightImg:"hamster.png" },
+  { text: "Sacrifice 2 dads grilling or 1 cool uncle?", left:2, right:1, leftLabel:"Dads", rightLabel:"Uncle", leftImg:"grillingman.png", rightImg:"uncle.png" },
+  { text: "Run over 1 grandma knitting or 2 Fortnite players?", left:1, right:2, leftLabel:"Grandma", rightLabel:"Fortnite kids", leftImg:"grandma.png", rightImg:"fortnight.png" },
+  { text: "Kill 3 pigeons or 1 seagull stealing fries?", left:3, right:1, leftLabel:"Pigeons", rightLabel:"Seagull", leftImg:"pigeon.png", rightImg:"seagull.png" },
+  { text: "Sacrifice 1 wizard or 3 apprentices?", left:1, right:3, leftLabel:"Wizard", rightLabel:"Apprentices", leftImg:"wizard.png", rightImg:"person.png" },
+  { text: "Flatten 2 clowns or 1 mime?", left:2, right:1, leftLabel:"Clowns", rightLabel:"Mime", leftImg:"clown.png", rightImg:"mime.png" },
+  { text: "Run over 3 chefs or destroy a buffet?", left:3, right:5, leftLabel:"Chefs", rightLabel:"Buffet", leftImg:"chef.png", rightImg:"pizza.png" },
+  { text: "Sacrifice 2 baristas or 1 coffee?", left:2, right:1, leftLabel:"Baristas", rightLabel:"Coffee", leftImg:"person.png", rightImg:"coffee.png" },
+  { text: "Run over 1 gamer chair or 3 gamers?", left:1, right:3, leftLabel:"Chair", rightLabel:"Gamers", leftImg:"chair.png", rightImg: "gamer.png" },
+  { text: "Run over 1 grandma or 2 ducks?", left:1, right:2, leftLabel:"Grandma", rightLabel:"Ducks", leftImg:"grandma.png", rightImg:"duck.png" },
+  { text: "Sacrifice 2 pirates or 1 parrot?", left:2, right:1, leftLabel:"Pirates", rightLabel:"Parrot", leftImg:"pirate.png", rightImg:"parrot.png" },
+  { text: "Destroy 1 robot or 3 humans?", left:1, right:3, leftLabel:"Robot", rightLabel:"Humans", leftImg:"robot.png", rightImg:"person.png" }
+];
+
+/* Score values per PNG */
+const scoreValues = {
+  "grandma.png": 15,
+  "baby.png": 25,
+  "clown.png": 15,
+  "elephant.png": 20,
+  "pizza.png": 10,
+  "pizzaman.png": 15,
+  "duck.png": 5,
+  "goose.png": 20,
+  "justinman.png": 25,
+  "unemployed.png": 5,
+  "dog.png": 21,  
+  "cat.png": 15,
+  "mosquito.png": 5,
+  "bee.png": 8,   
+  "santa.png": 20,
+  "gift.png": 10,
+  "zombie.png": 15,
+  "fish.png": 10,
+  "hamster.png": 15,
+  "pigeon.png": 5,
+  "seagull.png": 15,
+  "wizard.png": 20,
+  "coffee.png": 15,
+  "chair.png": 10,
+  "parrot.png": 15,
+  "robot.png": 25,
+  "mime.png": 7,
+  "charlie.png": 7,
+  "grillingman.png": 10,
+  "uncle.png": 9,
+  "chef.png": 6
+};
+
+
+
+let questions = [];
+let current = 0;
+let killCount = 0;
+let score = 0;
+
+/* shuffle + pick 10 */
+function startGame() {
+  questions = [...allQuestions].sort(()=>Math.random()-0.5).slice(0,10);
+  current = 0; killCount=0; score=0;
+  document.getElementById("killCount").innerText="Kills: 0";
+  document.getElementById("scoreCount").innerText="Score: 0";
+
+  // 🆕 clear old results so they don’t carry over
+  document.getElementById("feedback").innerHTML = "";
+  document.getElementById("question").innerText = "";
+
+  showQuestion();
+}
+
+function setupPeople(leftNum, rightNum, leftImg, rightImg){
+  const leftTrack = document.getElementById("leftTrack");
+  const rightTrack = document.getElementById("rightTrack");
+  leftTrack.innerHTML = "";
+  rightTrack.innerHTML = "";
+
+  for(let i=0; i<leftNum; i++){
+    const p = document.createElement("div"); p.className="person";
+    const img = document.createElement("img"); img.src = leftImg;
+    const blood = document.createElement("div"); blood.className="blood";
+    p.dataset.img = leftImg;
+    p.appendChild(img); p.appendChild(blood); leftTrack.appendChild(p);
+  }
+  for(let i=0; i<rightNum; i++){
+    const p = document.createElement("div"); p.className="person";
+    const img = document.createElement("img"); img.src = rightImg;
+    const blood = document.createElement("div"); blood.className="blood";
+    p.dataset.img = rightImg;
+    p.appendChild(img); p.appendChild(blood); rightTrack.appendChild(p);
+  }
+}
+
+function showQuestion(){
+  const q = questions[current];
+  document.getElementById("question").innerText = q.text;
+  document.getElementById("leftBtn").innerText = q.leftLabel;
+  document.getElementById("rightBtn").innerText = q.rightLabel;
+
+  setupPeople(q.left, q.right, q.leftImg, q.rightImg);
+
+  const train = document.getElementById("train");
+  train.style.left = "0px";
+  train.style.top = "50px";
+
+  document.getElementById("leftBtn").disabled = false;
+  document.getElementById("rightBtn").disabled = false;
+  document.getElementById("leftBtn").style.display = "inline-block";
+  document.getElementById("rightBtn").style.display = "inline-block";
+  document.getElementById("restartBtn").style.display = "none";
+}
+
+function animateTrain(track){
+  const train = document.getElementById("train");
+  const trackDiv = track==="left" ? document.getElementById("leftTrack") : document.getElementById("rightTrack");
+  train.style.top = trackDiv.offsetTop + "px";
+
+  const people = trackDiv.getElementsByClassName("person");
+  const totalPeople = people.length;
+  train.style.left = "500px";
+
+  for(let i=0; i<totalPeople; i++){
+    setTimeout(() => {
+      const p = people[i];
+      const blood = p.querySelector(".blood");
+      blood.style.display="block";
+      blood.style.transform="scale(1.2)";
+      const sound=document.getElementById("hitSound"); sound.currentTime=0; sound.play();
+
+      killCount++;
+      const imgName = p.dataset.img;
+      score += scoreValues[imgName] || 10;
+      document.getElementById("killCount").innerText="Kills: " + killCount;
+      document.getElementById("scoreCount").innerText="Score: " + score;
+
+      setTimeout(() => { blood.style.opacity="0"; blood.style.transform="scale(0)"; }, 500);
+    }, 500*(i+1));
+  }
+}
+
+function getTitle(kills){
+  if(kills===0) return "Saint of the Tracks";
+  if(kills<=7) return "Moral Wobbler";
+  if(kills<=14) return "Trolley Apprentice";
+  if(kills<=24) return "Certified Menace";
+  return "Sacrifice Supreme";
+}
+
+function nextQuestion(){
+  current++;
+  if(current<questions.length){
+    showQuestion();
+  } else {
+    const title=getTitle(killCount);
+    let result=`Final Score: ${score} points (Goal: 300)<br>`;
+    result += score >= 300 ? "🎉 You WON!<br>" : "💀 You lost...<br>";
+    result += `Title: <b>${title}</b>`;
+
+    document.getElementById("question").innerText="Wow... interesting choices...";
+    document.getElementById("feedback").innerHTML=result;
+    document.getElementById("leftBtn").style.display="none";
+    document.getElementById("rightBtn").style.display="none";
+    document.getElementById("restartBtn").style.display="inline-block";
+
+    const eSound=document.getElementById("endSound");
+    eSound.currentTime=0; eSound.play();
+  }
+}
+
+document.getElementById("startBtn").onclick=()=>{
+  document.getElementById("intro").style.display="none";
+  document.getElementById("game").style.display="block";
+  startGame();
+};
+
+document.getElementById("leftBtn").onclick=()=>{
+  animateTrain("left");
+  document.getElementById("leftBtn").disabled=true;
+  document.getElementById("rightBtn").disabled=true;
+  setTimeout(nextQuestion, 500*questions[current].left+1000);
+};
+document.getElementById("rightBtn").onclick=()=>{
+  animateTrain("right");
+  document.getElementById("leftBtn").disabled=true;
+  document.getElementById("rightBtn").disabled=true;
+  setTimeout(nextQuestion, 500*questions[current].right+1000);
+};
+document.getElementById("restartBtn").onclick=()=>{
+  startGame();
+};
+</script>
+</body>
+</html>
